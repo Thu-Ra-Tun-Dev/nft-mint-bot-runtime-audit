@@ -1,0 +1,57 @@
+// SimulateLoop — auto-simulate until sale opens, bounded by openWaitMs (no infinite loop)
+// sale ဖွင့်တဲ့အထိ simulate poll၊ openWaitMs deadline နဲ့ ကန့်သတ် (infinite loop မဖြစ်စေ)
+
+const { simulateCandidate } = require("../phase/simulationProbe")
+const config = require("../config/settings")
+const logger = require("../logger/logger")
+
+const DEFAULT_OPEN_WAIT_MS = 120_000 // fallback if config.retry.openWaitMs unset / config မရှိရင် fallback
+const DEFAULT_POLL_INTERVAL_MS = 750  // closed-state base poll interval / ပိတ်နေစဉ် poll
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// decide open vs closed from a simulation result / sim result ကနေ open/closed
+function isOpenFrom(result) {
+	if (!result) return false
+	if (result.success) return true // eth_call succeeded -> open / အောင်ရင် open
+	const cls = result.classification
+	// gating revert (open but our proof/sig/limit unmet) still means the sale is OPEN
+	// gate revert = sale ဖွင့်ပြီး၊ proof/sig မမှန်ရုံ -> open လို့ယူ
+	if (cls && cls.matched && cls.saleOpen === true) return true
+	if (cls && cls.saleOpen === false) return false // explicit closed/paused -> still closed
+	return false // unknown -> treat closed, keep polling / မသိရင် ပိတ်လို့ယူ
+}
+
+// poll until open OR deadline OR manual stop / open/deadline/stop အထိ poll
+async function waitForOpen(ctx, control, options = {}) {
+	const openWaitMs = options.openWaitMs || (config.retry && config.retry.openWaitMs) || DEFAULT_OPEN_WAIT_MS
+	const pollMs = options.pollIntervalMs || DEFAULT_POLL_INTERVAL_MS
+	const from = options.from || null
+
+	const deadline = Date.now() + openWaitMs
+	let polls = 0
+	let last = null
+
+	while (true) {
+		if (control && control.stopped) return { open: false, reason: "stopped", polls, last }
+		if (Date.now() >= deadline) {
+			logger.warn(`[retry] open-wait timeout after ${polls} poll(s)`)
+			return { open: false, reason: "timeout", polls, last }
+		}
+
+		polls++
+		try {
+			last = await simulateCandidate(ctx.primary, ctx.target, from)
+			if (isOpenFrom(last)) {
+				logger.tx(`[retry] sale OPEN detected (poll ${polls})`)
+				return { open: true, reason: "open", polls, last }
+			}
+		} catch (e) {
+			// transient RPC error -> keep polling, not a closed signal / RPC error -> ဆက် poll
+			logger.debug(`[retry] simulate poll error: ${e && e.message}`)
+		}
+		await sleep(pollMs)
+	}
+}
+
+module.exports = { waitForOpen, isOpenFrom }
