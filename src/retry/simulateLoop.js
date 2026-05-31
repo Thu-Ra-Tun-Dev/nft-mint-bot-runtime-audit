@@ -32,6 +32,15 @@ async function waitForOpen(ctx, control, options = {}) {
 	let polls = 0
 	let last = null
 
+  // SeaDrop PUBLIC: openness already established authoritatively by getPublicDrop's live-window
+  // (statePhaseProbe guard). The mintPublic eth_call is NOT a valid open-oracle — it reverts
+  // data-less ("missing revert data") even when live — so bypass the poll entirely for SeaDrop.
+  // SeaDrop ဆို getPublicDrop live guard က open ဖြစ်ပြီးသား — mintPublic eth_call ကို open oracle မသုံး
+  if (ctx && ctx.seaDrop) {
+    logger.tx("[retry] SeaDrop public window live at detection -> OPEN (bypass mint eth_call probe)")
+    return { open: true, reason: "seadrop-window", polls: 0, last: null }
+  }
+
 	while (true) {
 		if (control && control.stopped) return { open: false, reason: "stopped", polls, last }
 		if (Date.now() >= deadline) {

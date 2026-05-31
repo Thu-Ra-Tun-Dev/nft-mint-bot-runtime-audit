@@ -137,6 +137,10 @@ function buildRetryContext({ analysis, strategy, phaseReport, mintArgs = null, v
     args,
     value: valueWei,
     source: (phaseReport && phaseReport.source) || "static",
+    // SeaDrop live-window marker — only set when the router override fired (PUBLIC + live getPublicDrop)
+    // statePhaseProbe live guard guarantees a currently-live window when this is non-null
+    // override fire မှသာ set — statePhaseProbe guard ကြောင့် live window အာမခံ
+    seaDrop: sd ? phaseReport.seaDrop : null,
     // encode calldata for current args / calldata ဆောက်
     encode() { return iface.encodeFunctionData(chosen.name, this.args) },
    }
