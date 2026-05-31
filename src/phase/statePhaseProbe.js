@@ -107,6 +107,10 @@ async function detectSeaDropPublic(analysis, provider) {
     if (start === 0n || end === 0n) return null
     const block = await provider.getBlock("latest")
     const now = BigInt(block.timestamp)
+
+    // only claim PUBLIC when the window is currently live
+    if (now < start || now > end) return null
+
     console.log("[SEADROP] start =", start.toString())
     console.log("[SEADROP] end =", end.toString())
     console.log("[SEADROP] now =", now.toString())
