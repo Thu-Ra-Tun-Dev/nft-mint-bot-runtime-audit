@@ -41,7 +41,10 @@ async function waitForOpen(ctx, control, options = {}) {
 
 		polls++
 		try {
-			last = await simulateCandidate(ctx.primary, ctx.target, from)
+			// probe with the SAME args/value the spam path will broadcast, so OPEN detection is accurate
+			// spam က ပို့မယ့် args/value အတိုင်း probe (placeholder မဟုတ်) -> OPEN detection မှန်
+			last = await simulateCandidate(ctx.primary, ctx.target, from, { args: ctx.args, value: ctx.value })
+         console.log("[SIM RESULT]", last)
 			if (isOpenFrom(last)) {
 				logger.tx(`[retry] sale OPEN detected (poll ${polls})`)
 				return { open: true, reason: "open", polls, last }

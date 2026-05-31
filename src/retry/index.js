@@ -22,6 +22,11 @@ function createControl() {
 async function runRetry({ analysis, strategy, phaseReport, mintArgs = null, value = 0n, from = null, control = null, options = {} } = {}) {
 	keystore.connect(rpc.getProvider()) // ensure signers have a provider / signer ကို provider ချိတ်
 	const ctx = buildRetryContext({ analysis, strategy, phaseReport, mintArgs, value })
+
+  console.log("[RETRY CTX RETURNED]")
+  console.log("[RETRY TARGET]", ctx.target)
+  console.log("[RETRY PRIMARY]", ctx.primary?.name)
+
 	const ctrl = control || createControl()
 	const report = new RetryReport(ctx)
 

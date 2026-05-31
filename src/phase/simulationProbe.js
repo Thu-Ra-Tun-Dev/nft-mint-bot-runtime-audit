@@ -27,13 +27,17 @@ function placeholder(type) {
 	return 0n
 }
 
-async function simulateCandidate(candidate, target, from) {
+async function simulateCandidate(candidate, target, from, opts = {}) {
 	const provider = rpc.getProvider()
 	const iface = new Interface([`function ${candidate.signature}`])
-	const data = iface.encodeFunctionData(candidate.name, buildArgs(candidate.signature))
+  // use real ctx args/value when provided, else placeholders (price-unknown probe) / arg/value ပေးရင်သုံး
+  const callArgs = Array.isArray(opts.args) ? opts.args : buildArgs(candidate.signature)
+  const data = iface.encodeFunctionData(candidate.name, callArgs)
 
-	// value 0 first (price unknown) — revert reason still informative / value 0
-	const tx = { to: target, data, from }
+  const tx = { to: target, data, from }
+  if (opts.value !== undefined) {
+    try { tx.value = BigInt(opts.value) } catch (_) {}
+  }
 	try {
 		await rpc.call(provider, "call", tx)
 		return { selector: candidate.selector, success: true, gate: gateFromRequires(candidate.requires), classification: null }
