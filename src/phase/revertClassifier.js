@@ -1,6 +1,7 @@
 // RevertClassifier — map a parsed revert → phase signal class (regex, no hardcode)
 // revert reason ကို phase class အဖြစ်ခွဲ (regex သာ၊ project hardcode မရှိ)
 
+const { lookupSelector } = require("./selectorRegistry")
 const { PHASE } = require("./phaseSignals")
 
 // ordered rules — first match wins / အပေါ်ကစီ၊ ပထမတွေ့တာယူ
@@ -18,6 +19,25 @@ const RULES = [
 // classify a parsed revert / parseRevert ရဲ့ output ကိုခွဲ
 function classifyRevert(parsed) {
 	const text = (parsed && parsed.reason) || ""
+	// selector-first / selector အရင်: canonical seed ထဲက custom-error selector ကို
+	// string RULES မစစ်ခင် decode မယ်။ seed hit ရင် authoritative — sold-out/limit/
+	// gate တွေ မှန်အောင်ပြန်ပေး။ string reverts အတွက် RULES & saleOpen logic
+	// အောက်မှာ အတိအတိုင်း မပြောင်းဘူး (fallback)။
+	const selector = parsed && parsed.errorSelector
+	if (selector) {
+		const seed = lookupSelector(selector)
+		if (seed) {
+			return {
+				matched: true,
+				phase: seed.phase,
+				gate: seed.gate,
+				saleOpen: seed.saleOpen,
+				label: seed.label,
+				errorSelector: selector,
+				text,
+			}
+		}
+	}
 	for (const rule of RULES) {
 		if (text && rule.re.test(text)) {
 			return { matched: true, phase: rule.phase, gate: rule.gate, saleOpen: rule.open, text }
