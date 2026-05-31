@@ -22,9 +22,13 @@ const SEADROP_TOKEN_RE = /seadrop|publicdrop|mintstats|multiconfigure/i
 
 // explicit PublicDrop tuple ABI — field order verified against ProjectOpenSea/seadrop SeaDropStructs.sol
 // PublicDrop tuple ABI (field order ကို repo source နဲ့ တိုက်ပြီး အတည်ပြုထား)
-const GET_PUBLIC_DROP_ABI = [
-  "function getPublicDrop(address nftContract) view returns (uint80 mintPrice, uint48 startTime, uint48 endTime, uint16 maxTotalMintableByWallet, uint16 feeBps, bool restrictFeeRecipients)",
-]
+ const GET_PUBLIC_DROP_ABI = [
+   "function getPublicDrop(address nftContract) view returns (uint80 mintPrice, uint48 startTime, uint48 endTime, uint16 maxTotalMintableByWallet, uint16 feeBps, bool restrictFeeRecipients)",
+  // allowed fee recipient list + creator payout fallback (same router, token-parameterised)
+  // allowed fee recipient list + creator payout fallback (router တူ၊ token arg)
+  "function getAllowedFeeRecipients(address nftContract) view returns (address[])",
+  "function getCreatorPayoutAddress(address nftContract) view returns (address)",
+ ]
 
 // does this token look like a SeaDrop token? / SeaDrop token လား စစ်
 function looksLikeSeaDrop(analysis) {
@@ -106,14 +110,32 @@ async function detectSeaDropPublic(analysis, provider) {
     console.log("[SEADROP] start =", start.toString())
     console.log("[SEADROP] end =", end.toString())
     console.log("[SEADROP] now =", now.toString())
-    // only claim PUBLIC when the window is currently live / window ထဲ ရှိမှသာ PUBLIC
-    if (now < start || now > end) return null
+    // carry mintPrice for value = mintPrice * qty / value တွက်ဖို့ mintPrice သယ်
+    const mintPrice = BigInt(drop.mintPrice)
+
+    // allowed fee recipient — required when restrictFeeRecipients=true; empty list -> creator payout
+    // (creator payout fallback is only valid in the unrestricted case)
+    // restrict=true ဆို allowed recipient မဖြစ်မနေလို၊ list ဗလာ(restrict မရှိ)ဆို creator payout fallback
+    let feeRecipient = null
+    try {
+      const recips = await sea.getAllowedFeeRecipients(analysis.address)
+      if (Array.isArray(recips) && recips.length > 0) feeRecipient = recips[0]
+      else feeRecipient = await sea.getCreatorPayoutAddress(analysis.address)
+    } catch (_) {
+      feeRecipient = null
+    }
+    console.log("[SEADROP] mintPrice =", mintPrice.toString())
+    console.log("[SEADROP] feeRecipient =", feeRecipient)
+
     return {
       phase: PHASE.PUBLIC,
       weight: 3,
       why: `seadrop getPublicDrop live [${start}-${end}] now=${now}`,
       stageIndex: 0,
       source: "state",
+      // SeaDrop execution metadata — survives via phase/index.js raw-hint read (scorer drops extras)
+      // SeaDrop execution metadata (phaseScorer မဖြတ်နိုင်အောင် phase/index.js က raw hint ဖတ်ယူ)
+      seaDrop: { router, token: analysis.address, mintPrice, feeRecipient },
     }
   } catch (err) {
     console.log("[SEADROP] ERROR =", err?.message || err)

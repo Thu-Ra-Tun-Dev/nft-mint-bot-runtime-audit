@@ -61,6 +61,15 @@ async function detectPhase(analysis, strategy = null, { from = null, simulate } 
     source,
     confidence: top.confidence,
   }
+
+    // SeaDrop exec metadata is read straight from the raw winning state hint, because
+    // phaseScorer + candidates projection drop non-allowlisted fields (mintPrice/feeRecipient)
+    // SeaDrop metadata ကို raw winning state hint ကနေ တိုက်ရိုက်ယူ (scorer/candidates က ဖြတ်ထုတ်လို့)
+    if (top.phase === PHASE.PUBLIC) {
+      const seaHint = stateHints.find((h) => h && h.seaDrop && h.phase === PHASE.PUBLIC)
+      if (seaHint) report.seaDrop = seaHint.seaDrop
+    }
+
   logger.info(`[phase] ${analysis.address} → ${top.phase} conf=${top.confidence} (${source})`)
   return report
 }
